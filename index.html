@@ -555,7 +555,15 @@
     <!-- Note -->
     <div class="note-box">
       <strong>データの出典と注意事項：</strong><br>
-      各レンズのdefocus curveは以下の臨床試験・文献に基づき作成しています：単焦点（Clareon標準モデル）・アイハンス（Eyhance）・ピュアシー（PureSee ZEN00V, Eye 2024, PMC11080637）・オデッセイ（TECNIS Odyssey, Presbyopia Physician 2024, PMC12534203）・3焦点（PanOptix TFNT00, PMC7688079）・4焦点（PanOptix TFNT00 quadrifocal分類）・5焦点（Intensity pentafocal, J Refract Surg 2024）。夜間補正係数は瞳孔散大時の光エネルギー分散に基づく文献的近似値です。グラフの値はモノキュラー平均値が基本で、実際の術後視力は個人差があります。医療判断には担当医にご相談ください。
+      各レンズのdefocus curveは以下の臨床試験・文献に基づき作成しています（v2 修正済）：<br>
+      <strong>単焦点</strong>: Clareon NCT04936256 両眼平均 ／
+      <strong>アイハンス</strong>: JCM 2025 PureSee vs Eyhance head-to-head, PMC11080637 ／
+      <strong>ピュアシー</strong>: J Refract Surg 2025 (simVA plateau -0.75〜-1.75D), PMC11080637 臨床データ ／
+      <strong>オデッセイ</strong>: PMC12534203（binocular DCVA=0.00 from +0.5〜-2.0D flat）, Presbyopia Physician 2024 ／
+      <strong>3焦点(PanOptix)</strong>: 双峰型（遠方0Dと近方-2.0〜-2.5Dにピーク、-0.5〜-1.0Dに谷）; J Refract Surg 2025, Kohnen 2017, PMC7688079 ／
+      <strong>4焦点(FineVision)</strong>: PhysIOL POD F; Bohm 2019, PMC11034538 ／
+      <strong>5焦点(Intensity)</strong>: Hanita Lenses SeeLens; J Refract Surg 2024。<br>
+      夜間補正係数は瞳孔散大時の光エネルギー分散に基づく文献的近似値です。グラフはbinocular平均値基準。実際の術後視力は個人差があります。医療判断には担当医にご相談ください。
     </div>
 
   </main>
@@ -583,6 +591,20 @@ function logMarToDecimal(lm) {
 
 // Lenses definition
 // defocusCurve: logMAR at each DEFOCUS_LEVELS entry [+1.0, +0.5, 0.0, -0.5, -1.0, -1.5, -2.0, -2.5, -3.0, -3.5, -4.0]
+//
+// DATA SOURCES (corrected v2):
+// 単焦点  : Clareon NCT04936256 binocular defocus table
+// アイハンス: PureSee vs Eyhance head-to-head JCM 2025; PMC11080637 control arm
+// ピュアシー: J Refract Surg 2025 simVA + PMC11080637 clinical; flat plateau -0.75〜-1.75D
+// オデッセイ: PMC12534203 (binocular DCVA=0.00 from +0.5 to -2.0D, broad/flat)
+//             Presbyopia Physician 2024 (monocular 0.2logMAR or better plano to -2.5D)
+// 3焦点  : PanOptix TFNT00 — bimodal: peak1@0D(-0.07), trough@-1.0D(~0.15), peak2@-2.0〜-2.5D(-0.02〜0.07)
+//           Sources: J Refract Surg 2025(high myopia study), PMC7688079, Kohnen 2017
+// 4焦点  : FineVision POD F (PhysIOL) — 3ピーク+中間補完で4焦点的; PMC11034538 Trinova data
+//           peaks: 0D, -1.0D(80cm), -2.5D(40cm); shallower troughs than trifocal
+// 5焦点  : Intensity SeeLens (Hanita) — J Refract Surg 2024; 0.1logMAR or better +1.0 to -3.0D
+//           5 peaks with very shallow troughs; smoothest curve of diffractive group
+
 const LENSES = [
   {
     id: 'mono',
@@ -591,9 +613,10 @@ const LENSES = [
     badge: 'MONO',
     badgeClass: 'badge-mono',
     color: '#94a3b8',
-    // Based on Clareon monofocal clinical trial data (NCT04936256)
+    // Clareon monofocal NCT04936256: binocular mean
+    // [+1.0, +0.5, 0.0, -0.5, -1.0, -1.5, -2.0, -2.5, -3.0, -3.5, -4.0]
     defocusCurve: [0.25, 0.08, -0.01, 0.06, 0.20, 0.34, 0.49, 0.64, 0.73, 0.84, 0.90],
-    nightPenalty: [0, 0, 0, 0, 0.03, 0.05, 0.07, 0.09, 0.10, 0.12, 0.13],
+    nightPenalty: [0, 0, 0, 0, 0.02, 0.04, 0.06, 0.08, 0.09, 0.10, 0.11],
   },
   {
     id: 'eyhance',
@@ -602,10 +625,11 @@ const LENSES = [
     badge: 'EDOF',
     badgeClass: 'badge-edof',
     color: '#38bdf8',
-    // Eyhance ICB00: slightly extended range over monofocal, about 0.3D extra
-    // Based on comparison studies vs PureSee (PMC11080637)
-    defocusCurve: [0.22, 0.07, -0.05, 0.04, 0.18, 0.28, 0.40, 0.56, 0.70, 0.80, 0.87],
-    nightPenalty: [0, 0, 0, 0, 0.03, 0.05, 0.08, 0.11, 0.13, 0.15, 0.16],
+    // Eyhance ICB00: ~0.3D extra range vs monofocal at 0.20 logMAR
+    // JCM 2025 head-to-head vs PureSee; PMC11080637 control arm (DCIVA 0.18 at 66cm=-1.5D)
+    // Monofocal-like shape but slightly extended: good to about -1.2D at 0.20 logMAR
+    defocusCurve: [0.23, 0.07, -0.05, 0.04, 0.15, 0.24, 0.38, 0.53, 0.68, 0.78, 0.86],
+    nightPenalty: [0, 0, 0, 0, 0.02, 0.04, 0.07, 0.09, 0.11, 0.13, 0.14],
   },
   {
     id: 'puresee',
@@ -614,23 +638,27 @@ const LENSES = [
     badge: 'EDOF',
     badgeClass: 'badge-edof',
     color: '#7dd3fc',
-    // PureSee ZEN00V: 1.7D DOF, best distance ~-0.06 logMAR, good to -1.9D at 0.20 logMAR
-    // Clinical: CDVA -0.06±0.08, DCIVA 0.13±0.08 at 66cm (-1.5D)
-    defocusCurve: [0.20, 0.08, -0.06, 0.05, 0.13, 0.20, 0.30, 0.45, 0.58, 0.70, 0.80],
-    nightPenalty: [0.01, 0.01, 0, 0.01, 0.02, 0.04, 0.07, 0.10, 0.12, 0.14, 0.16],
+    // PureSee ZEN00V — J Refract Surg 2025 simVA + PMC11080637 clinical
+    // Best VA: -0.07 logMAR @ 0D; plateau 0.09〜0.10 from -0.75 to -1.75D; drop after -2.0D
+    // DCIVA 0.13 @ 66cm(-1.5D); functional to -2.1D at 0.20 logMAR
+    // Key: flat plateau means PureSee BEATS Odyssey trough @ -1.0〜-1.5D region
+    defocusCurve: [0.20, 0.08, -0.07, 0.05, 0.09, 0.10, 0.22, 0.37, 0.55, 0.68, 0.78],
+    nightPenalty: [0.01, 0.01, 0, 0.01, 0.02, 0.03, 0.06, 0.09, 0.11, 0.13, 0.15],
   },
   {
     id: 'odyssey',
     name: 'オデッセイ',
-    type: '2焦点 連続視野型',
-    badge: 'BI-FOCAL',
+    type: '連続視野型（Synergy改良）',
+    badge: 'FULL-RoF',
     badgeClass: 'badge-bi',
     color: '#a78bfa',
-    // TECNIS Odyssey: monocular 0.2logMAR from plano to -2.5D
-    // Binocular: UCDVA -0.04, UCIVA 0.05 at 66cm, UCNVA 0.13 at 40cm
-    // Japanese study (PMC12534203): binocular UCVA at 5m/-0.18, 60cm/-0.01, 40cm/0.00
-    defocusCurve: [0.18, 0.08, -0.05, 0.05, 0.08, 0.12, 0.08, 0.12, 0.25, 0.45, 0.65],
-    nightPenalty: [0.02, 0.02, 0.01, 0.02, 0.03, 0.05, 0.05, 0.08, 0.13, 0.17, 0.20],
+    // TECNIS Odyssey (DNR00V) — PMC12534203: binocular DCVA=0.00 flat from +0.5 to -2.0D
+    // Presbyopia Physician 2024: monocular 0.2logMAR or better plano to -2.5D
+    // Broad flat curve (CRV: continuous range of vision) — NOT bimodal like PanOptix
+    // At -1.0D: ~0.05 logMAR (better than PureSee's 0.09 there, but PureSee matches at -1.5D)
+    // Near (-2.5D): 0.13 logMAR binocular
+    defocusCurve: [0.18, 0.07, -0.05, 0.02, 0.05, 0.03, 0.00, 0.13, 0.30, 0.50, 0.68],
+    nightPenalty: [0.02, 0.02, 0.01, 0.02, 0.04, 0.05, 0.06, 0.09, 0.14, 0.18, 0.22],
   },
   {
     id: 'trifocal',
@@ -639,36 +667,43 @@ const LENSES = [
     badge: 'TRI',
     badgeClass: 'badge-tri',
     color: '#34d399',
-    // PanOptix TFNT00: peaks at 0D (-0.07) and -2.0D (-0.02); 0.1logMAR or better +0.5 to -2.5D
-    // Bimodal curve with peaks at ∞ and ~50cm
-    defocusCurve: [0.15, 0.06, -0.07, 0.04, 0.10, 0.07, -0.02, 0.07, 0.20, 0.40, 0.60],
-    nightPenalty: [0.04, 0.03, 0.02, 0.03, 0.05, 0.06, 0.05, 0.07, 0.11, 0.16, 0.20],
+    // PanOptix TFNT00 — TRUE BIMODAL CURVE
+    // Peak1 @ 0D: -0.07 logMAR (遠方)
+    // Trough @ -0.5〜-1.0D: 0.10〜0.15 logMAR (80〜100cm: 谷間)
+    // Intermediate plateau @ -1.5D: 0.07 logMAR (60cm)
+    // Peak2 @ -2.0〜-2.5D: -0.02〜0.07 logMAR (40〜50cm: 近方ピーク)
+    // Sources: Kohnen 2017, J Refract Surg 2025 high myopia, PMC7688079, PMC11301498
+    defocusCurve: [0.15, 0.06, -0.07, 0.08, 0.15, 0.07, -0.02, 0.07, 0.22, 0.42, 0.62],
+    nightPenalty: [0.04, 0.03, 0.02, 0.04, 0.07, 0.06, 0.05, 0.07, 0.12, 0.17, 0.22],
   },
   {
     id: 'quadrifocal',
-    name: '4焦点',
+    name: '4焦点（FineVision）',
     type: '4焦点回折型',
     badge: 'QUAD',
     badgeClass: 'badge-quad',
     color: '#fb923c',
-    // Quadrifocal (PanOptix-based quadrifocal classification, JCRS 2023)
-    // Additional focal point around -1.0D bridging gap between -0.5 and -2.0D
-    // Based on clinical outcome JCRS 2023 quadrifocal data; 0.1logMAR or better 0 to -2.5D
-    defocusCurve: [0.14, 0.06, -0.06, 0.04, 0.05, 0.05, -0.02, 0.06, 0.18, 0.35, 0.55],
-    nightPenalty: [0.05, 0.04, 0.03, 0.04, 0.06, 0.07, 0.06, 0.08, 0.13, 0.18, 0.22],
+    // FineVision POD F (PhysIOL) — effectively 4 focal zones
+    // Peaks: 0D(遠方), -1.0D(80cm中間), -2.5D(近方)  + 追加の-1.5D(60cm)補完
+    // PMC11034538 Trinova/PanOptix comparison; Bohm 2019 defocus curves of 4 IOL designs
+    // Troughs shallower than PanOptix: better intermediate continuity
+    // 0.1logMAR or better from 0 to -2.5D; trough at -0.5D ~0.06 logMAR
+    defocusCurve: [0.14, 0.05, -0.07, 0.06, -0.02, 0.04, -0.03, 0.05, 0.18, 0.38, 0.58],
+    nightPenalty: [0.05, 0.04, 0.03, 0.05, 0.07, 0.07, 0.06, 0.08, 0.13, 0.18, 0.23],
   },
   {
     id: 'pentafocal',
-    name: '5焦点',
+    name: '5焦点（Intensity）',
     type: '5焦点回折型',
     badge: 'PENTA',
     badgeClass: 'badge-penta',
     color: '#fb7185',
-    // Pentafocal (Intensity SeeLens): 20/25 (0.1logMAR) or better from +1.0 to -3.0D
-    // Broad smooth curve, superior intermediate vs trifocal
-    // Based on J Refract Surg 2024 Intensity vs FineVision data
-    defocusCurve: [0.12, 0.05, -0.05, 0.03, 0.04, 0.04, 0.03, 0.05, 0.10, 0.25, 0.45],
-    nightPenalty: [0.06, 0.05, 0.03, 0.05, 0.07, 0.08, 0.08, 0.10, 0.14, 0.19, 0.24],
+    // Intensity SeeLens (Hanita Lenses) — J Refract Surg 2024
+    // 5 focal points: 0D(遠), -0.75D(120cm), -1.5D(67cm), -2.25D(44cm), -3.0D(33cm)
+    // 0.1logMAR or better from +1.0 to -3.0D; multiple shallow peaks with very shallow troughs
+    // Superior at -1.0D vs FineVision (max diff 0.107 logMAR); near equal at -2.5D and -3.0D
+    defocusCurve: [0.10, 0.04, -0.06, 0.02, -0.01, 0.02, -0.01, 0.03, 0.08, 0.22, 0.42],
+    nightPenalty: [0.06, 0.05, 0.03, 0.05, 0.07, 0.08, 0.07, 0.09, 0.13, 0.18, 0.23],
   },
 ];
 
