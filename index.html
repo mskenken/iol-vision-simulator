@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>眼内レンズ 視力シミュレーター</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --bg: #0a0f1e;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #2a3a55;
+    --accent: #38bdf8;
+    --accent2: #a78bfa;
+    --accent3: #34d399;
+    --warn: #fb923c;
+    --text: #e2e8f0;
+    --text-muted: #64748b;
+    --text-dim: #94a3b8;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(56,189,248,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(56,189,248,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  header {
+    padding: 24px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: rgba(10,15,30,0.8);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  header h1 {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  header .tag {
+    margin-left: auto;
+    background: rgba(56,189,248,0.1);
+    border: 1px solid rgba(56,189,248,0.3);
+    color: var(--accent);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 1px;
+  }
+
+  .main {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 0;
+    min-height: calc(100vh - 65px);
+  }
+
+  /* ---- Sidebar ---- */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  /* Lens selector */
+  .lens-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .lens-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+  }
+
+  .lens-item:hover { background: var(--surface2); border-color: var(--border); }
+  .lens-item.active { background: rgba(56,189,248,0.08); border-color: rgba(56,189,248,0.3); }
+
+  .lens-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 2px solid currentColor;
+  }
+
+  .lens-check {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+
+  .lens-item.active .lens-check {
+    border-color: var(--accent);
+    background: var(--accent);
+  }
+
+  .lens-check::after {
+    content: '';
+    width: 8px;
+    height: 5px;
+    border-left: 2px solid var(--bg);
+    border-bottom: 2px solid var(--bg);
+    transform: rotate(-45deg) translate(0, -2px);
+    display: none;
+  }
+
+  .lens-item.active .lens-check::after { display: block; }
+
+  .lens-info { flex: 1; min-width: 0; }
+  .lens-name { font-size: 13px; font-weight: 500; }
+  .lens-type { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+  /* Badge */
+  .badge {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+
+  .badge-mono { background: rgba(148,163,184,0.15); color: #94a3b8; }
+  .badge-edof { background: rgba(56,189,248,0.15); color: #38bdf8; }
+  .badge-bi { background: rgba(167,139,250,0.15); color: #a78bfa; }
+  .badge-tri { background: rgba(52,211,153,0.15); color: #34d399; }
+  .badge-quad { background: rgba(251,146,60,0.15); color: #fb923c; }
+  .badge-penta { background: rgba(251,113,133,0.15); color: #fb7185; }
+
+  /* Controls */
+  .control-group { display: flex; flex-direction: column; gap: 8px; }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .control-label { font-size: 13px; color: var(--text-dim); }
+  .control-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    min-width: 50px;
+    text-align: right;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(56,189,248,0.5);
+  }
+
+  /* Toggle */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .toggle {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    cursor: pointer;
+  }
+
+  .toggle input { opacity: 0; width: 0; height: 0; }
+
+  .toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 11px;
+    transition: 0.2s;
+  }
+
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 3px;
+    top: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.2s;
+  }
+
+  .toggle input:checked + .toggle-slider { background: var(--accent); }
+  .toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
+
+  /* Error band info */
+  .info-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .info-card strong { color: var(--text); }
+
+  /* ---- Main content ---- */
+  .content {
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    overflow-y: auto;
+  }
+
+  .chart-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    position: relative;
+  }
+
+  .chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .chart-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .chart-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .chart-wrap {
+    position: relative;
+    height: 400px;
+  }
+
+  /* Distance markers */
+  .distance-labels {
+    display: flex;
+    gap: 0;
+    margin-top: 8px;
+    padding: 0 8px;
+  }
+
+  .dist-label {
+    flex: 1;
+    text-align: center;
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* Stats table */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+
+  .stat-card .stat-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .stat-card .stat-icon { font-size: 18px; margin-bottom: 4px; }
+
+  .stat-card .stat-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .stat-card .stat-unit { font-size: 12px; color: var(--text-muted); margin-left: 4px; }
+
+  /* Note box */
+  .note-box {
+    background: rgba(56,189,248,0.05);
+    border: 1px solid rgba(56,189,248,0.15);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.7;
+  }
+
+  .note-box a { color: var(--accent); text-decoration: none; }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .legend-line {
+    width: 28px;
+    height: 3px;
+    border-radius: 2px;
+  }
+
+  .legend-band {
+    width: 20px;
+    height: 10px;
+    border-radius: 2px;
+    opacity: 0.3;
+  }
+
+  /* Night mode overlay on chart */
+  .night-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    background: linear-gradient(to right,
+      rgba(10,15,30,0) 0%,
+      rgba(10,15,30,0) 30%,
+      rgba(10,15,30,0.04) 60%,
+      rgba(10,15,30,0.08) 100%
+    );
+    pointer-events: none;
+    display: none;
+  }
+
+  .night-overlay.visible { display: block; }
+
+  /* Target line */
+  .target-indicator {
+    background: rgba(56,189,248,0.1);
+    border: 1px solid rgba(56,189,248,0.2);
+    border-radius: 6px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .target-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+
+  /* Sections divider */
+  .section-divider {
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; }
+    .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">IOL Simulator</div>
+    <h1>眼内レンズ 視力シミュレーター</h1>
+  </div>
+  <span class="tag">β v1.0</span>
+</header>
+
+<div class="main">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+
+    <div>
+      <div class="section-label">レンズ選択（複数可）</div>
+      <div class="lens-list" id="lensList"></div>
+    </div>
+
+    <div class="section-divider"></div>
+
+    <div>
+      <div class="section-label">合わせ距離</div>
+      <div class="control-group">
+        <div class="control-row">
+          <span class="control-label">ターゲット距離</span>
+          <span class="control-value" id="targetVal">∞ m</span>
+        </div>
+        <input type="range" id="targetSlider" min="0" max="7" step="1" value="7">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);font-family:'Space Mono',monospace;margin-top:2px;">
+          <span>0.4m</span><span>1m</span><span>2m</span><span>3m</span><span>4m</span><span>5m</span><span>10m</span><span>∞</span>
+        </div>
+      </div>
+      <div class="target-indicator" style="margin-top:12px;">
+        <div class="target-dot"></div>
+        <span id="targetDesc">遠方合わせ（遠方が最も見える設定）</span>
+      </div>
+    </div>
+
+    <div class="section-divider"></div>
+
+    <div>
+      <div class="section-label">術後誤差</div>
+      <div class="toggle-row">
+        <span class="control-label">±0.5D 誤差バンド表示</span>
+        <label class="toggle"><input type="checkbox" id="errorBand"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="info-card" style="margin-top:8px;">
+        <strong>誤差バンドとは</strong><br>
+        設計通りの屈折と術後実際の屈折には±0.5D程度のズレが生じることがあります。バンドはその範囲での視力変動を示します。
+      </div>
+    </div>
+
+    <div class="section-divider"></div>
+
+    <div>
+      <div class="section-label">瞳孔・照明条件</div>
+      <div class="toggle-row">
+        <span class="control-label">夜間（暗所）モード</span>
+        <label class="toggle"><input type="checkbox" id="nightMode"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="info-card" style="margin-top:8px;">
+        <strong>夜間モードについて</strong><br>
+        暗所では瞳孔が散大し、多焦点・EDOF系レンズで光の拡散が増します。単焦点はほぼ影響を受けません。多焦点系ほど夜間の視力低下・グレア・ハローが大きくなる傾向があります。<br><br>
+        ※ 近似値です。個人差があります。
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- Main content -->
+  <main class="content">
+
+    <div class="chart-container">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">距離別 視力カーブ</div>
+          <div class="chart-subtitle">縦軸：十進視力（高いほど良い） / 横軸：距離</div>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="mainChart"></canvas>
+        <div class="night-overlay" id="nightOverlay"></div>
+      </div>
+      <div id="legendArea" class="legend" style="margin-top:16px;"></div>
+    </div>
+
+    <!-- Stats grid -->
+    <div id="statsArea" class="stats-grid"></div>
+
+    <!-- Note -->
+    <div class="note-box">
+      <strong>データの出典と注意事項：</strong><br>
+      各レンズのdefocus curveは以下の臨床試験・文献に基づき作成しています：単焦点（Clareon標準モデル）・アイハンス（Eyhance）・ピュアシー（PureSee ZEN00V, Eye 2024, PMC11080637）・オデッセイ（TECNIS Odyssey, Presbyopia Physician 2024, PMC12534203）・3焦点（PanOptix TFNT00, PMC7688079）・4焦点（PanOptix TFNT00 quadrifocal分類）・5焦点（Intensity pentafocal, J Refract Surg 2024）。夜間補正係数は瞳孔散大時の光エネルギー分散に基づく文献的近似値です。グラフの値はモノキュラー平均値が基本で、実際の術後視力は個人差があります。医療判断には担当医にご相談ください。
+    </div>
+
+  </main>
+</div>
+
+<script>
+// =====================================================================
+// DATA: Defocus curves (logMAR) keyed by defocus in diopters
+// 0.0D = 遠方 (∞), -1.0D ≈ 1m, -2.0D ≈ 50cm, etc.
+// Positive logMAR = worse vision; negative = better than 20/20
+// =====================================================================
+
+const DEFOCUS_LEVELS = [1.0, 0.5, 0.0, -0.5, -1.0, -1.5, -2.0, -2.5, -3.0, -3.5, -4.0];
+
+// Convert defocus level D to approximate viewing distance (m)
+function defocusToDistance(D) {
+  if (D === 0) return Infinity;
+  return 1 / Math.abs(D);
+}
+
+// Convert logMAR to decimal VA (十進視力)
+function logMarToDecimal(lm) {
+  return Math.pow(10, -lm);
+}
+
+// Lenses definition
+// defocusCurve: logMAR at each DEFOCUS_LEVELS entry [+1.0, +0.5, 0.0, -0.5, -1.0, -1.5, -2.0, -2.5, -3.0, -3.5, -4.0]
+const LENSES = [
+  {
+    id: 'mono',
+    name: '単焦点',
+    type: '単焦点レンズ',
+    badge: 'MONO',
+    badgeClass: 'badge-mono',
+    color: '#94a3b8',
+    // Based on Clareon monofocal clinical trial data (NCT04936256)
+    defocusCurve: [0.25, 0.08, -0.01, 0.06, 0.20, 0.34, 0.49, 0.64, 0.73, 0.84, 0.90],
+    nightPenalty: [0, 0, 0, 0, 0.03, 0.05, 0.07, 0.09, 0.10, 0.12, 0.13],
+  },
+  {
+    id: 'eyhance',
+    name: 'アイハンス',
+    type: 'EDOF（深度拡張）',
+    badge: 'EDOF',
+    badgeClass: 'badge-edof',
+    color: '#38bdf8',
+    // Eyhance ICB00: slightly extended range over monofocal, about 0.3D extra
+    // Based on comparison studies vs PureSee (PMC11080637)
+    defocusCurve: [0.22, 0.07, -0.05, 0.04, 0.18, 0.28, 0.40, 0.56, 0.70, 0.80, 0.87],
+    nightPenalty: [0, 0, 0, 0, 0.03, 0.05, 0.08, 0.11, 0.13, 0.15, 0.16],
+  },
+  {
+    id: 'puresee',
+    name: 'ピュアシー',
+    type: 'EDOF 純屈折型',
+    badge: 'EDOF',
+    badgeClass: 'badge-edof',
+    color: '#7dd3fc',
+    // PureSee ZEN00V: 1.7D DOF, best distance ~-0.06 logMAR, good to -1.9D at 0.20 logMAR
+    // Clinical: CDVA -0.06±0.08, DCIVA 0.13±0.08 at 66cm (-1.5D)
+    defocusCurve: [0.20, 0.08, -0.06, 0.05, 0.13, 0.20, 0.30, 0.45, 0.58, 0.70, 0.80],
+    nightPenalty: [0.01, 0.01, 0, 0.01, 0.02, 0.04, 0.07, 0.10, 0.12, 0.14, 0.16],
+  },
+  {
+    id: 'odyssey',
+    name: 'オデッセイ',
+    type: '2焦点 連続視野型',
+    badge: 'BI-FOCAL',
+    badgeClass: 'badge-bi',
+    color: '#a78bfa',
+    // TECNIS Odyssey: monocular 0.2logMAR from plano to -2.5D
+    // Binocular: UCDVA -0.04, UCIVA 0.05 at 66cm, UCNVA 0.13 at 40cm
+    // Japanese study (PMC12534203): binocular UCVA at 5m/-0.18, 60cm/-0.01, 40cm/0.00
+    defocusCurve: [0.18, 0.08, -0.05, 0.05, 0.08, 0.12, 0.08, 0.12, 0.25, 0.45, 0.65],
+    nightPenalty: [0.02, 0.02, 0.01, 0.02, 0.03, 0.05, 0.05, 0.08, 0.13, 0.17, 0.20],
+  },
+  {
+    id: 'trifocal',
+    name: '3焦点（PanOptix）',
+    type: '3焦点回折型',
+    badge: 'TRI',
+    badgeClass: 'badge-tri',
+    color: '#34d399',
+    // PanOptix TFNT00: peaks at 0D (-0.07) and -2.0D (-0.02); 0.1logMAR or better +0.5 to -2.5D
+    // Bimodal curve with peaks at ∞ and ~50cm
+    defocusCurve: [0.15, 0.06, -0.07, 0.04, 0.10, 0.07, -0.02, 0.07, 0.20, 0.40, 0.60],
+    nightPenalty: [0.04, 0.03, 0.02, 0.03, 0.05, 0.06, 0.05, 0.07, 0.11, 0.16, 0.20],
+  },
+  {
+    id: 'quadrifocal',
+    name: '4焦点',
+    type: '4焦点回折型',
+    badge: 'QUAD',
+    badgeClass: 'badge-quad',
+    color: '#fb923c',
+    // Quadrifocal (PanOptix-based quadrifocal classification, JCRS 2023)
+    // Additional focal point around -1.0D bridging gap between -0.5 and -2.0D
+    // Based on clinical outcome JCRS 2023 quadrifocal data; 0.1logMAR or better 0 to -2.5D
+    defocusCurve: [0.14, 0.06, -0.06, 0.04, 0.05, 0.05, -0.02, 0.06, 0.18, 0.35, 0.55],
+    nightPenalty: [0.05, 0.04, 0.03, 0.04, 0.06, 0.07, 0.06, 0.08, 0.13, 0.18, 0.22],
+  },
+  {
+    id: 'pentafocal',
+    name: '5焦点',
+    type: '5焦点回折型',
+    badge: 'PENTA',
+    badgeClass: 'badge-penta',
+    color: '#fb7185',
+    // Pentafocal (Intensity SeeLens): 20/25 (0.1logMAR) or better from +1.0 to -3.0D
+    // Broad smooth curve, superior intermediate vs trifocal
+    // Based on J Refract Surg 2024 Intensity vs FineVision data
+    defocusCurve: [0.12, 0.05, -0.05, 0.03, 0.04, 0.04, 0.03, 0.05, 0.10, 0.25, 0.45],
+    nightPenalty: [0.06, 0.05, 0.03, 0.05, 0.07, 0.08, 0.08, 0.10, 0.14, 0.19, 0.24],
+  },
+];
+
+// Target distance options [label, diopter_target, description]
+const TARGET_OPTIONS = [
+  ['0.4m', 2.5, '近方（スマホ・読書）合わせ'],
+  ['1m', 1.0, '近中間（テーブル上）合わせ'],
+  ['2m', 0.5, '中間距離合わせ（オデッセイで推奨例あり）'],
+  ['3m', 0.33, '中間遠方合わせ'],
+  ['4m', 0.25, '中間遠方合わせ'],
+  ['5m', 0.20, '遠中間合わせ'],
+  ['10m', 0.10, '遠方寄り合わせ'],
+  ['∞', 0.0, '遠方合わせ（遠方が最も見える設定）'],
+];
+
+// =====================================================================
+// State
+// =====================================================================
+let state = {
+  activeLenses: new Set(['mono', 'eyhance', 'odyssey', 'trifocal']),
+  targetIdx: 7,       // index into TARGET_OPTIONS
+  errorBand: false,
+  nightMode: false,
+};
+
+// =====================================================================
+// Compute shifted defocus curve given target diopter
+// =====================================================================
+function shiftedCurve(lens, targetD, night) {
+  // targetD: diopter the lens is tuned to (0 = infinity, 0.5 = 2m, etc.)
+  // We shift the defocus curve so its optimum is at targetD
+  return DEFOCUS_LEVELS.map((d, i) => {
+    // The residual defocus the eye actually experiences
+    const residual = d + targetD; // shift by target
+    // Find base logMAR by interpolation in original curve
+    let lm = interpolateCurve(lens.defocusCurve, residual);
+    if (night) {
+      let nightBonus = interpolateCurve(lens.nightPenalty, residual);
+      lm += nightBonus;
+    }
+    return logMarToDecimal(Math.max(-0.2, Math.min(lm, 1.5)));
+  });
+}
+
+function interpolateCurve(curve, defocus) {
+  // DEFOCUS_LEVELS: [1.0, 0.5, 0.0, -0.5, -1.0, -1.5, -2.0, -2.5, -3.0, -3.5, -4.0]
+  if (defocus >= DEFOCUS_LEVELS[0]) return curve[0];
+  if (defocus <= DEFOCUS_LEVELS[DEFOCUS_LEVELS.length - 1]) return curve[curve.length - 1];
+  for (let i = 0; i < DEFOCUS_LEVELS.length - 1; i++) {
+    const d1 = DEFOCUS_LEVELS[i], d2 = DEFOCUS_LEVELS[i + 1];
+    if (defocus <= d1 && defocus >= d2) {
+      const t = (defocus - d1) / (d2 - d1);
+      return curve[i] + t * (curve[i + 1] - curve[i]);
+    }
+  }
+  return curve[curve.length - 1];
+}
+
+function errorBandCurve(lens, targetD, night, sign) {
+  // sign: +1 or -1 for ±0.5D error
+  return DEFOCUS_LEVELS.map((d, i) => {
+    const residual = d + targetD + sign * 0.5;
+    let lm = interpolateCurve(lens.defocusCurve, residual);
+    if (night) {
+      let nightBonus = interpolateCurve(lens.nightPenalty, residual);
+      lm += nightBonus;
+    }
+    return logMarToDecimal(Math.max(-0.2, Math.min(lm, 1.5)));
+  });
+}
+
+// =====================================================================
+// Chart
+// =====================================================================
+let chart = null;
+
+// X-axis: distances. Map defocus levels to approximate distances for display
+const X_LABELS = ['近方\n0.25m', '0.5m', '遠方∞', '2m相当', '1m', '67cm', '50cm', '40cm', '33cm', '29cm', '25cm'];
+// Actually let's use the defocus => distance mapping in a meaningful way
+// Positive defocus means hyperopic (beyond focus), negative = myopic (closer)
+// For display, let's show the "distance the person is looking at" perspective
+// defocus 0 = tuned distance, -1.0D ≈ 1m if tuned for inf
+const X_DIST_LABELS = DEFOCUS_LEVELS.map(d => {
+  if (d > 0) return `+${d}D\n(遠方外)`;
+  if (d === 0) return '0D\n(焦点)';
+  const dist = Math.round(100 / Math.abs(d));
+  return `${d}D\n(${dist}cm)`;
+});
+
+function buildChartData() {
+  const targetD = TARGET_OPTIONS[state.targetIdx][1];
+  const night = state.nightMode;
+  const eb = state.errorBand;
+
+  const datasets = [];
+
+  LENSES.forEach(lens => {
+    if (!state.activeLenses.has(lens.id)) return;
+
+    const main = shiftedCurve(lens, targetD, night);
+
+    // Main line
+    datasets.push({
+      label: lens.name,
+      data: main,
+      borderColor: lens.color,
+      backgroundColor: 'transparent',
+      borderWidth: 2.5,
+      pointRadius: 3,
+      pointBackgroundColor: lens.color,
+      tension: 0.4,
+      fill: false,
+      lensId: lens.id,
+    });
+
+    // Error band
+    if (eb) {
+      const up = errorBandCurve(lens, targetD, night, +1);
+      const dn = errorBandCurve(lens, targetD, night, -1);
+
+      datasets.push({
+        label: `${lens.name} (+0.5D)`,
+        data: up,
+        borderColor: 'transparent',
+        backgroundColor: hexToRgba(lens.color, 0.12),
+        borderWidth: 0,
+        pointRadius: 0,
+        tension: 0.4,
+        fill: '+1',
+        lensId: lens.id + '_up',
+        errorBand: true,
+      });
+      datasets.push({
+        label: `${lens.name} (-0.5D)`,
+        data: dn,
+        borderColor: 'transparent',
+        backgroundColor: hexToRgba(lens.color, 0.12),
+        borderWidth: 0,
+        pointRadius: 0,
+        tension: 0.4,
+        fill: false,
+        lensId: lens.id + '_dn',
+        errorBand: true,
+      });
+    }
+  });
+
+  return datasets;
+}
+
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function initChart() {
+  const ctx = document.getElementById('mainChart').getContext('2d');
+
+  // Distance labels for x-axis (what the eye can actually see)
+  // Let's reframe: show actual "look distance" on x-axis based on target
+  const targetD = TARGET_OPTIONS[state.targetIdx][1];
+  const xLabels = DEFOCUS_LEVELS.map(d => {
+    // actual diopter power = targetD + d (shifted)
+    // but for x-label, let's show real-world distances the eye is looking at
+    const actualD = targetD - d; // power the eye needs to see that object
+    if (Math.abs(actualD) < 0.05) return `${TARGET_OPTIONS[state.targetIdx][0]}\n(ターゲット)`;
+    if (actualD <= 0) return '∞\n(遠方)';
+    const distCm = Math.round(100 / actualD);
+    if (distCm >= 1000) return '∞';
+    if (distCm >= 100) return `${(distCm/100).toFixed(0)}m`;
+    return `${distCm}cm`;
+  });
+
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: X_DIST_LABELS, datasets: buildChartData() },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400, easing: 'easeInOutQuart' },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#111827',
+          borderColor: '#2a3a55',
+          borderWidth: 1,
+          titleColor: '#94a3b8',
+          bodyColor: '#e2e8f0',
+          padding: 12,
+          callbacks: {
+            title(items) {
+              const d = DEFOCUS_LEVELS[items[0].dataIndex];
+              const targetD = TARGET_OPTIONS[state.targetIdx][1];
+              const actualD = targetD - d;
+              if (actualD <= 0.01) return `遠方（∞）`;
+              const distM = (1 / actualD);
+              return distM >= 5 ? `${distM.toFixed(0)}m以上` :
+                     distM >= 1 ? `${distM.toFixed(1)}m` :
+                     `${(distM * 100).toFixed(0)}cm`;
+            },
+            label(item) {
+              if (item.dataset.errorBand) return null;
+              const val = item.raw;
+              const snellen = Math.round(6 / val * 10) / 10;
+              return ` ${item.dataset.label}: ${val.toFixed(2)} (6/${snellen.toFixed(0)})`;
+            },
+            filter(item) { return !item.dataset.errorBand; }
+          }
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: '#64748b',
+            font: { size: 10, family: "'Space Mono', monospace" },
+            maxRotation: 0,
+          },
+          grid: { color: 'rgba(42,58,85,0.5)' },
+        },
+        y: {
+          min: 0,
+          max: 1.6,
+          ticks: {
+            color: '#64748b',
+            font: { size: 10, family: "'Space Mono', monospace" },
+            callback(v) {
+              if ([0.1, 0.3, 0.5, 0.7, 1.0, 1.2, 1.5].includes(v))
+                return v.toFixed(1);
+              return '';
+            },
+            stepSize: 0.1,
+          },
+          grid: { color: 'rgba(42,58,85,0.5)' },
+          title: {
+            display: true,
+            text: '十進視力',
+            color: '#64748b',
+            font: { size: 11, family: "'Noto Sans JP', sans-serif" },
+          }
+        }
+      }
+    }
+  });
+}
+
+function updateChart() {
+  if (!chart) return;
+  const datasets = buildChartData();
+  chart.data.datasets = datasets;
+
+  // Update x-axis labels based on target
+  const targetD = TARGET_OPTIONS[state.targetIdx][1];
+  chart.data.labels = DEFOCUS_LEVELS.map(d => {
+    const actualD = targetD - d;
+    if (actualD <= 0.01) return '∞\n遠方';
+    const distM = 1 / actualD;
+    if (distM >= 5) return `${distM.toFixed(0)}m`;
+    if (distM >= 1) return `${distM.toFixed(1)}m`;
+    return `${(distM * 100).toFixed(0)}cm`;
+  });
+
+  chart.update();
+  updateLegend();
+  updateStats();
+}
+
+// =====================================================================
+// Build sidebar lens list
+// =====================================================================
+function buildLensList() {
+  const container = document.getElementById('lensList');
+  container.innerHTML = '';
+  LENSES.forEach(lens => {
+    const item = document.createElement('div');
+    item.className = 'lens-item' + (state.activeLenses.has(lens.id) ? ' active' : '');
+    item.innerHTML = `
+      <div class="lens-check"></div>
+      <div class="lens-dot" style="color:${lens.color};background:${lens.color}22;"></div>
+      <div class="lens-info">
+        <div class="lens-name">${lens.name}</div>
+        <div class="lens-type">${lens.type}</div>
+      </div>
+      <span class="badge ${lens.badgeClass}">${lens.badge}</span>
+    `;
+    item.addEventListener('click', () => {
+      if (state.activeLenses.has(lens.id)) {
+        if (state.activeLenses.size > 1) state.activeLenses.delete(lens.id);
+      } else {
+        state.activeLenses.add(lens.id);
+      }
+      buildLensList();
+      updateChart();
+    });
+    container.appendChild(item);
+  });
+}
+
+// =====================================================================
+// Legend
+// =====================================================================
+function updateLegend() {
+  const area = document.getElementById('legendArea');
+  area.innerHTML = '';
+  LENSES.forEach(lens => {
+    if (!state.activeLenses.has(lens.id)) return;
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `
+      <div class="legend-line" style="background:${lens.color}"></div>
+      <span>${lens.name}</span>
+    `;
+    area.appendChild(item);
+  });
+  if (state.errorBand) {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `<div class="legend-band" style="background:#ffffff"></div><span>術後誤差 ±0.5D</span>`;
+    area.appendChild(item);
+  }
+}
+
+// =====================================================================
+// Stats
+// =====================================================================
+function updateStats() {
+  const area = document.getElementById('statsArea');
+  area.innerHTML = '';
+  const targetD = TARGET_OPTIONS[state.targetIdx][1];
+  const night = state.nightMode;
+
+  LENSES.forEach(lens => {
+    if (!state.activeLenses.has(lens.id)) return;
+
+    // Get VA at key distances: ∞, 5m, 2m, 1m, 60cm, 40cm
+    const keyDistances = [
+      { label: '遠方 ∞', icon: '🏔', diopter: 0 },
+      { label: '5m', icon: '🚗', diopter: 0.2 },
+      { label: '2m', icon: '📺', diopter: 0.5 },
+      { label: '1m', icon: '💻', diopter: 1.0 },
+      { label: '60cm', icon: '📱', diopter: 1.67 },
+      { label: '40cm', icon: '📖', diopter: 2.5 },
+    ];
+
+    const card = document.createElement('div');
+    card.className = 'stat-card';
+    card.style.borderColor = lens.color + '44';
+
+    const rows = keyDistances.map(kd => {
+      const residual = kd.diopter - targetD; // defocus amount
+      const shifted = -residual; // in defocus curve convention
+      let lm = interpolateCurve(lens.defocusCurve, shifted);
+      if (night) lm += interpolateCurve(lens.nightPenalty, shifted);
+      const va = logMarToDecimal(Math.max(-0.2, Math.min(lm, 1.5)));
+      const color = va >= 0.7 ? '#34d399' : va >= 0.5 ? '#a3e635' : va >= 0.3 ? '#fbbf24' : '#fb7185';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:11px;color:var(--text-muted)">${kd.icon} ${kd.label}</span>
+        <span style="font-family:'Space Mono',monospace;font-size:12px;color:${color};">${va.toFixed(2)}</span>
+      </div>`;
+    }).join('');
+
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <div style="width:10px;height:10px;border-radius:50%;background:${lens.color};flex-shrink:0;"></div>
+        <span style="font-size:13px;font-weight:500;">${lens.name}</span>
+        <span class="badge ${lens.badgeClass}" style="margin-left:auto;">${lens.badge}</span>
+      </div>
+      ${rows}
+    `;
+    area.appendChild(card);
+  });
+}
+
+// =====================================================================
+// Event listeners
+// =====================================================================
+document.getElementById('targetSlider').addEventListener('input', function() {
+  state.targetIdx = parseInt(this.value);
+  document.getElementById('targetVal').textContent = TARGET_OPTIONS[state.targetIdx][0];
+  document.getElementById('targetDesc').textContent = TARGET_OPTIONS[state.targetIdx][2];
+  updateChart();
+});
+
+document.getElementById('errorBand').addEventListener('change', function() {
+  state.errorBand = this.checked;
+  updateChart();
+});
+
+document.getElementById('nightMode').addEventListener('change', function() {
+  state.nightMode = this.checked;
+  document.getElementById('nightOverlay').classList.toggle('visible', this.checked);
+  updateChart();
+});
+
+// =====================================================================
+// Init
+// =====================================================================
+buildLensList();
+initChart();
+updateLegend();
+updateStats();
+</script>
+
+</body>
+</html>
